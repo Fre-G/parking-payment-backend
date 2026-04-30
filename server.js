@@ -19,8 +19,8 @@ app.post('/api/initiate-payment', async (req, res) => {
       currency: 'ETB',
       email,
       tx_ref,
-      callback_url: 'https://your-service-name.onrender.com/payment-callback',  // change later
-      return_url: 'https://your-service-name.onrender.com/success',            // change later
+      callback_url: 'https://parking-payment-backend.onrender.com/payment-callback',
+      return_url: 'https://parking-payment-backend.onrender.com/success',           
       customization: { title: 'Smart Parking Payment' }
     }, {
       headers: { Authorization: `Bearer ${secretKey}` }
