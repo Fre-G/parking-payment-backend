@@ -1,77 +1,49 @@
 const express = require('express');
-const axios = require('axios');
 const cors = require('cors');
 require('dotenv').config();
+const { Chapa } = require('chapa-nodejs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const chapa = new Chapa({
+  secretKey: process.env.CHAPA_SECRET_KEY,
+});
 
 app.use(cors());
 app.use(express.json());
 
 app.post('/api/initiate-payment', async (req, res) => {
-  const { amount, email, tx_ref, first_name, last_name } = req.body;
-  const secretKey = process.env.CHAPA_SECRET_KEY;
+  console.log('--- Received request body ---');
+  console.log(JSON.stringify(req.body, null, 2));
 
-  if (!secretKey) {
-    console.error('❌ CHAPA_SECRET_KEY missing in environment');
-    return res.status(500).json({ error: 'Server configuration error: missing API key' });
-  }
-
-  // Validate required fields
-  if (!amount || !email || !tx_ref || !first_name || !last_name) {
-      console.error('❌ Missing required fields in request body');
-      return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  // [IMPORTANT] Force the transaction amount to be at least 1 ETB to avoid "amount too low" errors
-  const finalAmount = Math.max(1, Number(amount));
+  const { amount, email, first_name, last_name, phone_number } = req.body;
+  const tx_ref = await chapa.genTxRef();
 
   const payload = {
-    amount: finalAmount,
+    first_name: first_name || 'Customer',
+    last_name: last_name || 'Customer',
+    email: email,
+    phone_number: phone_number || '0911111111',
     currency: 'ETB',
-    email,
-    first_name: first_name,
-    last_name: last_name,
+    amount: Math.max(1, Number(amount)).toString(),
     tx_ref: tx_ref,
     callback_url: 'https://parking-payment-backend.onrender.com/payment-callback',
     return_url: 'https://parking-payment-backend.onrender.com/success',
     customization: { title: 'Smart Parking Payment' },
-    // ✅ FIX: Explicitly tell Chapa to include card payments alongside local options
-    availablePaymentMethods: ['telebirr', 'cbebirr', 'ebirr', 'mpesa', 'card']
   };
 
-  console.log('✅ Sending payload to Chapa:', payload);
+  console.log('--- Sending payload to Chapa ---');
+  console.log(JSON.stringify(payload, null, 2));
 
   try {
-    const response = await axios.post(
-      'https://api.chapa.co/v1/transaction/initialize',
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    if (response.data?.data?.checkout_url) {
-      console.log('✅ Checkout URL received from Chapa');
-      return res.json({ checkout_url: response.data.data.checkout_url });
-    } else {
-      console.error('⚠️ Unexpected Chapa response:', response.data);
-      return res.status(500).json({ error: 'Invalid response from payment gateway' });
-    }
+    const response = await chapa.mobileInitialize(payload);
+    console.log('--- Success! Checkout URL received ---');
+    res.json({ checkout_url: response.data.checkout_url });
   } catch (error) {
-    if (error.response) {
-      console.error('❌ Chapa API error:', error.response.status, error.response.data);
-      return res.status(error.response.status).json(error.response.data);
-    } else if (error.request) {
-      console.error('❌ No response received from Chapa API');
-    } else {
-      console.error('❌ Error:', error.message);
-    }
-    return res.status(500).json({ error: error.message });
+    console.error('--- Chapa API Error ---');
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ error: error.response?.data?.message || error.message });
   }
 });
 
