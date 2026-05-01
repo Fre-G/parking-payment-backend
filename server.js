@@ -24,18 +24,21 @@ app.post('/api/initiate-payment', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  // --- Build the payload for Chapa, including all required fields ---
+  // [IMPORTANT] Force the transaction amount to be at least 1 ETB to avoid "amount too low" errors
+  const finalAmount = Math.max(1, Number(amount));
+
   const payload = {
-    amount: Number(amount),
+    amount: finalAmount,
     currency: 'ETB',
     email,
     first_name: first_name,
     last_name: last_name,
-    tx_ref,
-    // IMPORTANT FIX: Added ':8080' to the webhook URLs to specify the port
-    callback_url: 'https://parking-payment-backend.onrender.com:8080/payment-callback',
-    return_url: 'https://parking-payment-backend.onrender.com:8080/success',
-    customization: { title: 'Smart Parking Payment' }
+    tx_ref: tx_ref,
+    callback_url: 'https://parking-payment-backend.onrender.com/payment-callback',
+    return_url: 'https://parking-payment-backend.onrender.com/success',
+    customization: { title: 'Smart Parking Payment' },
+    // ✅ FIX: Explicitly tell Chapa to include card payments alongside local options
+    availablePaymentMethods: ['telebirr', 'cbebirr', 'ebirr', 'mpesa', 'card']
   };
 
   console.log('✅ Sending payload to Chapa:', payload);
@@ -60,7 +63,6 @@ app.post('/api/initiate-payment', async (req, res) => {
       return res.status(500).json({ error: 'Invalid response from payment gateway' });
     }
   } catch (error) {
-    // --- Enhanced error logging to capture the exact problem from Chapa ---
     if (error.response) {
       console.error('❌ Chapa API error:', error.response.status, error.response.data);
       return res.status(error.response.status).json(error.response.data);
