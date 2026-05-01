@@ -15,7 +15,7 @@ app.post('/api/initiate-payment', async (req, res) => {
 
   if (!secretKey) {
     console.error('❌ CHAPA_SECRET_KEY missing');
-    return res.status(500).json({ error: 'Server configuration error' });
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
   }
 
   const tx_ref = 'tx-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
@@ -55,8 +55,9 @@ app.post('/api/initiate-payment', async (req, res) => {
       return res.status(500).json({ error: 'Invalid gateway response' });
     }
   } catch (error) {
-    console.error('❌ Chapa error:', error.response?.data || error.message);
-    return res.status(500).json({ error: error.response?.data?.message || error.message });
+    const errorMsg = error.response?.data?.message || error.message;
+    console.error('❌ Chapa error:', errorMsg);
+    return res.status(500).json({ error: errorMsg });
   }
 });
 
