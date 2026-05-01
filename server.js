@@ -30,7 +30,7 @@ app.post('/api/initiate-payment', async (req, res) => {
     tx_ref: tx_ref,
     callback_url: 'https://parking-payment-backend.onrender.com/payment-callback',
     return_url: 'https://parking-payment-backend.onrender.com/success',
-    customization: { title: 'Smart Parking Payment' }
+    customization: { title: 'Parking Payment' }
   };
 
   console.log('📦 Sending to Chapa:', payload);
