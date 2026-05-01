@@ -6,9 +6,10 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
     "axios": "^1.6.0",
+    "chapa-nodejs": "^2.1.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2"
   }
 }
