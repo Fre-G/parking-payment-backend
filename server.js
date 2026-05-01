@@ -10,32 +10,40 @@ app.use(cors());
 app.use(express.json());
 
 app.post('/api/initiate-payment', async (req, res) => {
-  const { amount, email, tx_ref, user_name } = req.body; // ✅ add user_name from app
+  const { amount, email, tx_ref, first_name, last_name } = req.body;
   const secretKey = process.env.CHAPA_SECRET_KEY;
 
   if (!secretKey) {
     console.error('❌ CHAPA_SECRET_KEY missing in environment');
-    return res.status(500).json({ error: 'Server configuration error' });
+    return res.status(500).json({ error: 'Server configuration error: missing API key' });
   }
 
-  // Split name for first_name and last_name (Chapa requires both)
-  const firstName = user_name?.split(' ')[0] || 'User';
-  const lastName = user_name?.split(' ')[1] || 'Customer';
+  // Validate required fields
+  if (!amount || !email || !tx_ref || !first_name || !last_name) {
+      console.error('❌ Missing required fields in request body');
+      return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // --- Build the payload for Chapa, including all required fields ---
+  const payload = {
+    amount: Number(amount),
+    currency: 'ETB',
+    email,
+    first_name: first_name,
+    last_name: last_name,
+    tx_ref,
+    // IMPORTANT FIX: Added ':8080' to the webhook URLs to specify the port
+    callback_url: 'https://parking-payment-backend.onrender.com:8080/payment-callback',
+    return_url: 'https://parking-payment-backend.onrender.com:8080/success',
+    customization: { title: 'Smart Parking Payment' }
+  };
+
+  console.log('✅ Sending payload to Chapa:', payload);
 
   try {
     const response = await axios.post(
       'https://api.chapa.co/v1/transaction/initialize',
-      {
-        amount: Number(amount),          // ✅ must be number
-        currency: 'ETB',                 // ✅ required
-        email: email,                    // ✅ required
-        first_name: firstName,           // ✅ required (missing before)
-        last_name: lastName,             // ✅ required (missing before)
-        tx_ref: tx_ref,                  // ✅ required, must be unique
-        callback_url: 'https://parking-payment-backend.onrender.com/payment-callback',
-        return_url: 'https://parking-payment-backend.onrender.com/success',
-        customization: { title: 'Smart Parking Payment' }
-      },
+      payload,
       {
         headers: {
           Authorization: `Bearer ${secretKey}`,
@@ -44,20 +52,23 @@ app.post('/api/initiate-payment', async (req, res) => {
       }
     );
 
-    // Send checkout URL back to mobile app
     if (response.data?.data?.checkout_url) {
+      console.log('✅ Checkout URL received from Chapa');
       return res.json({ checkout_url: response.data.data.checkout_url });
     } else {
-      console.error('Unexpected Chapa response:', response.data);
+      console.error('⚠️ Unexpected Chapa response:', response.data);
       return res.status(500).json({ error: 'Invalid response from payment gateway' });
     }
   } catch (error) {
-    // Detailed error logging – this will show the exact problem in Render logs
+    // --- Enhanced error logging to capture the exact problem from Chapa ---
     if (error.response) {
-      console.error('Chapa API error:', error.response.status, error.response.data);
+      console.error('❌ Chapa API error:', error.response.status, error.response.data);
       return res.status(error.response.status).json(error.response.data);
+    } else if (error.request) {
+      console.error('❌ No response received from Chapa API');
+    } else {
+      console.error('❌ Error:', error.message);
     }
-    console.error('Error:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });
