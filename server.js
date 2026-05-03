@@ -8,21 +8,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ========== FIREBASE ADMIN INIT ==========
-// You need to have your service account key JSON. 
-// For Render, store the key in environment variable `FIREBASE_SERVICE_ACCOUNT` as a JSON string.
-// Or if you have the file, you can read it. This example uses environment variable.
-
+// Render: set environment variable FIREBASE_SERVICE_ACCOUNT with the JSON string
 if (!admin.apps.length) {
   let serviceAccount;
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   } else {
-    // fallback for local development – you can put your service account JSON in a file
-    serviceAccount = require('./firebase-service-account.json');
+    console.error('❌ FIREBASE_SERVICE_ACCOUNT environment variable not set');
+    process.exit(1);
   }
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: 'https://smart-parking-dashboard-a7707-default-rtdb.firebaseio.com/' // replace with your Realtime DB URL
+    databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://smart-parking-dashboard-a7707-default-rtdb.firebaseio.com/'
   });
 }
 
@@ -107,13 +104,13 @@ app.post('/api/verify-qr', async (req, res) => {
     const bookingDoc = bookingsSnapshot.docs[0];
     const booking = bookingDoc.data();
 
-    // Determine station ID from QR data (you can customize this logic)
+    // Determine station ID from QR data
     let stationId = null;
     const lowerQR = qrData.toLowerCase();
     if (lowerQR.includes('piassa')) stationId = 'piassa';
     else if (lowerQR.includes('maraki')) stationId = 'maraki';
     else if (lowerQR.includes('azezo')) stationId = 'azezo';
-    else stationId = booking.stationId; // fallback
+    else stationId = booking.stationId;
 
     if (booking.stationId !== stationId) {
       return res.status(403).json({ success: false, message: 'Wrong parking station' });
@@ -127,7 +124,7 @@ app.post('/api/verify-qr', async (req, res) => {
       timestamp: Date.now()
     });
 
-    // Update booking status to 'active' and record entry time
+    // Update booking status to 'active'
     await bookingDoc.ref.update({
       status: 'active',
       entryTime: new Date().toISOString()
@@ -140,7 +137,6 @@ app.post('/api/verify-qr', async (req, res) => {
   }
 });
 
-// ========== SIMPLE ENDPOINTS FOR CHAPA REDIRECTS ==========
 app.get('/payment-callback', (req, res) => {
   console.log('📞 Payment callback received:', req.query);
   res.send('OK');
@@ -159,5 +155,4 @@ app.get('/success', (req, res) => {
   `);
 });
 
-// ========== START SERVER ==========
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
